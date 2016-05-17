@@ -1,0 +1,11 @@
+{
+    "name": "",
+    "version": "",
+    "description": "",
+    "dependencies": {
+        "benchmark": "git@github.com:bestiejs/benchmark.js.git#447b01c8b89ae96f84eeea59282f7a326d0a4b8b"
+    },
+    "devDependencies": {
+        "browserify": "11.1.0"
+    }
+}
