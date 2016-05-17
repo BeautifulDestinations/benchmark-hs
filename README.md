@@ -1,5 +1,5 @@
 
-# virtual-dom
+# benchmark
 
 Bindings for benchmark
 
