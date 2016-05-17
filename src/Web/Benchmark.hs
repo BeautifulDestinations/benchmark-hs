@@ -1,18 +1,29 @@
 
 {-# LANGUAGE JavaScriptFFI, CPP, OverloadedStrings, BangPatterns #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 
 {-|
+Bindings to benchmark.js
 
+- Treats Benchmark type as immutable
 -}
 
 module Web.Benchmark
-    ( Suite
-    , newSuite
+    ( SuiteM
     , add
+    , addWithPrepare
+    , onCycle
     , onComplete
     , run
+    , liftIO
+    -- , liftS
+    , Suite
+    -- , newSuite
+    -- , addSuite
+    -- , onCycleSuite
+    -- , onCompleteSuite
+    -- , runSuite
     , benchmarks
     , Benchmark
     , name
@@ -25,23 +36,58 @@ module Web.Benchmark
     -- * Debug
     , debugLogSuite
     , debugLogBenchmark
+
     )
     where
 
--- import Control.Monad(forM_, forever)
--- import Data.Monoid
---
 import GHCJS.Types
 import Data.JSString
 import GHCJS.Foreign.Callback
 import JavaScript.Array (JSArray, toList)
---
--- import GHCJS.Foreign.Callback as CB
--- import qualified GHCJS.Foreign as F
--- import qualified JavaScript.Array as A
--- import qualified JavaScript.Object as O
--- import System.IO.Unsafe (unsafePerformIO)
--- import Data.IORef
+import Control.Monad.State
+import Control.Monad.IO.Class(liftIO)
+
+{-| Use this to build up a test suite-}
+newtype SuiteM a = S (StateT Suite IO a)
+  deriving (Functor, Applicative, Monad, MonadIO, MonadState Suite)
+
+{-| Add a benchmark to the suite. -}
+add :: JSString -> IO () -> SuiteM ()
+add n k = do
+  s <- get
+  s <- liftIO $ addSuite n k s
+  put s
+
+{-| Add a benchmark to the suite.
+    Run outer IO action as a prepare step.
+    Inner IO action is what is actually measured.
+-}
+addWithPrepare :: JSString -> IO (IO ()) -> SuiteM ()
+addWithPrepare n k = do
+  k2 <- liftIO k
+  add n k2
+
+{-| Called when a benchmark has been completed. -}
+onCycle :: (Benchmark -> IO ()) -> SuiteM ()
+onCycle k = do
+  s <- get
+  s <- liftIO $ onCycleSuite k s
+  put s
+
+{-| Called when the whole suite has been completed. -}
+onComplete :: (Suite -> IO ()) -> SuiteM ()
+onComplete k = do
+  s <- get
+  s <- liftIO $ onCompleteSuite k s
+  put s
+
+{-| Run benchmarks and invoke handlers as you go. -}
+run :: SuiteM a -> IO a
+run (S k) =  do
+  s <- newSuite
+  (a, s) <- runStateT k s
+  runSuite s
+  pure a
 
 
 newtype Suite = Suite JSVal
@@ -82,32 +128,32 @@ foreign import javascript safe "console.log($1)"
 foreign import javascript safe "console.log($1)"
   debugLogBenchmark :: Benchmark -> IO ()
 
-add :: JSString -> IO () -> Suite -> IO Suite
-add n k s = do
+addSuite :: JSString -> IO () -> Suite -> IO Suite
+addSuite n k s = do
   k2 <- syncCallback ThrowWouldBlock k
-  add' n k2 s
+  addSuite' n k2 s
 
-foreign import javascript safe "$3.add($1, $2)"
-  add' :: JSString -> Callback (IO ()) -> Suite -> IO Suite
+foreign import javascript safe "$3.addSuite($1, $2)"
+  addSuite' :: JSString -> Callback (IO ()) -> Suite -> IO Suite
 
-onComplete :: (Suite -> IO ()) -> Suite -> IO Suite
-onComplete k s = do
+
+-- TODO possibly unsafe
+onCycleSuite :: (Benchmark -> IO ()) -> Suite -> IO Suite
+onCycleSuite k s = do
+  k2 <- syncCallback1 ThrowWouldBlock (k . Benchmark)
+  onCycleSuite' k2 s
+
+foreign import javascript safe "$2.on('cycle', function(event) { $1(event.target) })"
+  onCycleSuite' :: Callback (JSVal -> IO ()) -> Suite -> IO Suite
+
+
+onCompleteSuite :: (Suite -> IO ()) -> Suite -> IO Suite
+onCompleteSuite k s = do
   k2 <- syncCallback1 ThrowWouldBlock (k . Suite)
-  onComplete' k2 s
+  onCompleteSuite' k2 s
 
 foreign import javascript safe "$2.on('complete', function(){ $1(this) })"
-  onComplete' :: Callback (JSVal -> IO ()) -> Suite -> IO Suite
+  onCompleteSuite' :: Callback (JSVal -> IO ()) -> Suite -> IO Suite
 
-foreign import javascript safe "$1.run()"
-  run :: Suite -> IO ()
-
-
-
--- foreign import javascript unsafe "h$vdom.node($1,$2,$3,$4,$5)"
---   primNode :: JSString -> JSVal -> JSVal -> JSVal -> JSVal -> Node
---
--- foreign import javascript unsafe "h$vdom.node($1,$2,$3,undefined,$4)"
---   primNode_4th_argument_undefined :: JSString -> JSVal -> JSVal -> JSString -> Node
---
--- foreign import javascript unsafe "h$vdom.staticNode($1, $2, $3, $4, $5)"
---   primStNode :: JSString -> JSVal -> JSVal -> JSVal -> JSVal -> Node
+foreign import javascript safe "$1.runSuite()"
+  runSuite :: Suite -> IO ()
