@@ -133,7 +133,7 @@ addSuite n k s = do
   k2 <- syncCallback ThrowWouldBlock k
   addSuite' n k2 s
 
-foreign import javascript safe "$3.addSuite($1, $2)"
+foreign import javascript safe "$3.add($1, $2)"
   addSuite' :: JSString -> Callback (IO ()) -> Suite -> IO Suite
 
 
@@ -155,5 +155,5 @@ onCompleteSuite k s = do
 foreign import javascript safe "$2.on('complete', function(){ $1(this) })"
   onCompleteSuite' :: Callback (JSVal -> IO ()) -> Suite -> IO Suite
 
-foreign import javascript safe "$1.runSuite()"
+foreign import javascript safe "$1.run()"
   runSuite :: Suite -> IO ()
