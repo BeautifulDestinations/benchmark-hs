@@ -20,7 +20,10 @@ function bddebug(a) {
 
 module.exports =
 	{ Benchmark : Benchmark
+	, lodash : _
 	};
+// TODO remove
+window.Benchmark = Benchmark;
 h$benchmark = module.exports;
 
 },{"benchmark":2,"lodash":3,"process":5}],2:[function(require,module,exports){

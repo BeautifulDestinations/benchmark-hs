@@ -19,5 +19,8 @@ function bddebug(a) {
 
 module.exports =
 	{ Benchmark : Benchmark
+	, lodash : _
 	};
+// TODO remove
+window.Benchmark = Benchmark;
 h$benchmark = module.exports;
